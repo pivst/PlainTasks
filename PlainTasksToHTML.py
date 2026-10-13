@@ -1,40 +1,31 @@
-# coding: utf-8
+"""Export task documents as UTF-8 HTML using Sublime package resources."""
+
+from html import escape
+import os
+from pathlib import Path
+import re
+from string import Template
+import tempfile
+import webbrowser
 
 import sublime
-import os
-import re
-import webbrowser
-import cgi
-import tempfile
 
-platform = sublime.platform()
-ST2 = int(sublime.version()) < 3000
-
-# io is not operable in ST2 on Linux, but in all other cases io is better
-# https://github.com/SublimeTextIssues/Core/issues/254
-if ST2 and platform == 'linux':
-    import codecs as io
-else:
-    import io
-
-if not ST2:
-    from .plist_parser import parse_file
-    from .PlainTasks import PlainTasksBase
-else:
-    from plist_parser import parse_file
-    from PlainTasks import PlainTasksBase
+from .APlainTasksCommon import PlainTasksBase
+from .plist_parser import parse_file, parse_string
 
 
-def hex_to_rgba(value):
+def hex_to_rgba(value: str) -> list[str]:
     value = value.lstrip('#')
     length = len(value)
-    if length == 3:
-        value = ''.join([v*2 for v in list(value)])
-    alpha = [str(round(int(value[6:], 16)/255., 2) if length > 6 else 1.)]
+    if length in (3, 4):
+        value = ''.join(v * 2 for v in value)
+    if len(value) not in (6, 8):
+        raise ValueError('Expected an RGB or RGBA hex color')
+    alpha = [str(round(int(value[6:], 16)/255., 2) if len(value) == 8 else 1.)]
     return [str(int(value[i:i+2], 16)) for i in range(0, 6, 2)] + alpha
 
 
-def convert_to_rgba_css(word):
+def convert_to_rgba_css(word: str) -> str:
     rgba = hex_to_rgba(word)
     rgba_css = 'rgb%s(%s)' % ('a' if len(rgba) > 3 else '', ','.join(rgba))
     return rgba_css
@@ -96,16 +87,21 @@ def convert_tmtheme_to_css(theme_file):
         return default_ccsl
 
     theme_as_dict = parse_file(theme_file)
+    return theme_to_css(theme_as_dict)
+
+
+def theme_to_css(theme_as_dict):
+    """Convert an already decoded TextMate theme to CSS."""
     cssl = []
 
     # make default color pink, easy to see in case of bugs
     default_color = 'rgb(236,9,140)'
-    for i in theme_as_dict.get('settings'):
+    for i in theme_as_dict.get('settings', []):
         s = i.get('settings', {})
         if 'caret' in s:
             default_color = convert_to_rgba_css(s['caret'])
 
-    for item in theme_as_dict.get('settings'):
+    for item in theme_as_dict.get('settings', []):
         scope = item.get('scope', 'body')
         props = item.get('settings', {})
         props_str = ''
@@ -133,14 +129,6 @@ def convert_tmtheme_to_css(theme_file):
         tag = mo.lastgroup.replace('__', '.').replace('_', '-') if mo else ''
         if tag:
             cssl.append('%s { %s}' % (tag, props_str))
-        # else:
-            # if not any(w in scope for w in ('bold', 'italic')):
-                # print('\n\n')
-                # print('NO TAG FOR', scope)
-                # print('REGEX:')
-                # print(allrxinone)
-                # print(allrxinone.replace(')|(', ')\n('))
-                # print('\n\n')
     return cssl
 
 
@@ -149,182 +137,137 @@ class PlainTasksConvertToHtml(PlainTasksBase):
         return self.view.score_selector(0, "text.todo") > 0
 
     def runCommand(self, edit, ask=False):
-        all_lines_regions = self.view.split_by_newlines(sublime.Region(0, self.view.size()))
-        html_doc = []
-        patterns = {'HEADER':    'text.todo keyword.control.header.todo ',
-                    'EMPTY':     'text.todo ',
-                    'NOTE':      'text.todo notes.todo ',
-                    'OPEN':      'text.todo meta.item.todo.pending ',
-                    'DONE':      'text.todo meta.item.todo.completed ',
-                    'CANCELLED': 'text.todo meta.item.todo.cancelled ',
-                    'SEPARATOR': 'text.todo meta.punctuation.separator.todo ',
-                    'ARCHIVE':   'text.todo meta.punctuation.archive.todo '
-                    }
-        for r in all_lines_regions:
-            i = self.view.scope_name(r.a)
-
-            if patterns['HEADER'] in i:
-                ht = '<span class="header">%s</span>' % cgi.escape(self.view.substr(r))
-
-            elif i == patterns['EMPTY']:
-                # these are empty lines (i.e. linebreaks, but span can be {display:none})
-                ht = '<span class="empty-line">%s</span>' % self.view.substr(r)
-
-            elif patterns['NOTE'] in i:
-                scopes = self.extracting_scopes(self, r, i)
-                note = '<span class="note">'
-                for s in scopes:
-                    sn = self.view.scope_name(s.a)
-                    if 'italic' in sn:
-                        note += '<i>%s</i>' % cgi.escape(self.view.substr(s).strip('_*'))
-                    elif 'bold' in sn:
-                        note += '<b>%s</b>' % cgi.escape(self.view.substr(s).strip('_*'))
-                    elif 'url' in sn:
-                        note += '<a href="{0}">{0}</a>'.format(cgi.escape(self.view.substr(s).strip('<>')))
-                    else:
-                        note += cgi.escape(self.view.substr(s))
-                ht = note + '</span>'
-
-            elif patterns['OPEN'] in i:
-                scopes = self.extracting_scopes(self, r)
-                indent = self.view.substr(sublime.Region(r.a, scopes[0].a)) if r.a != scopes[0].a else ''
-                pending = '<span class="open">%s' % indent
-                for s in scopes:
-                    sn = self.view.scope_name(s.a)
-                    if 'bullet' in sn:
-                        pending += '<span class="bullet-pending">%s</span>' % self.view.substr(s)
-                    elif 'meta.tag' in sn:
-                        pending += '<span class="tag">%s</span>' % cgi.escape(self.view.substr(s))
-                    elif 'tag.todo.today' in sn:
-                        pending += '<span class="tag-today">%s</span>' % self.view.substr(s)
-                    elif 'tag.todo.critical' in sn:
-                        pending += '<span class="tag-critical">%s</span>' % self.view.substr(s)
-                    elif 'tag.todo.high' in sn:
-                        pending += '<span class="tag-high">%s</span>' % self.view.substr(s)
-                    elif 'tag.todo.low' in sn:
-                        pending += '<span class="tag-low">%s</span>' % self.view.substr(s)
-                    elif 'italic' in sn:
-                        pending += '<i>%s</i>' % cgi.escape(self.view.substr(s).strip('_*'))
-                    elif 'bold' in sn:
-                        pending += '<b>%s</b>' % cgi.escape(self.view.substr(s).strip('_*'))
-                    elif 'url' in sn:
-                        pending += '<a href="{0}">{0}</a>'.format(cgi.escape(self.view.substr(s).strip('<>')))
-                    else:
-                        pending += cgi.escape(self.view.substr(s))
-                ht = pending + '</span>'
-
-            elif patterns['DONE'] in i:
-                scopes = self.extracting_scopes(self, r)
-                indent = self.view.substr(sublime.Region(r.a, scopes[0].a)) if r.a != scopes[0].a else ''
-                done = '<span class="done">%s' % indent
-                for s in scopes:
-                    sn = self.view.scope_name(s.a)
-                    if 'bullet' in sn:
-                        done += '<span class="bullet-done">%s</span>' % self.view.substr(s)
-                    elif 'tag.todo.completed' in sn:
-                        done += '<span class="tag-done">%s</span>' % cgi.escape(self.view.substr(s))
-                    else:
-                        done += cgi.escape(self.view.substr(s))
-                ht = done + '</span>'
-
-            elif patterns['CANCELLED'] in i:
-                scopes = self.extracting_scopes(self, r)
-                indent = self.view.substr(sublime.Region(r.a, scopes[0].a)) if r.a != scopes[0].a else ''
-                cancelled = '<span class="cancelled">%s' % indent
-                for s in scopes:
-                    sn = self.view.scope_name(s.a)
-                    if 'bullet' in sn:
-                        cancelled += '<span class="bullet-cancelled">%s</span>' % self.view.substr(s)
-                    elif 'tag.todo.cancelled' in sn:
-                        cancelled += '<span class="tag-cancelled">%s</span>' % cgi.escape(self.view.substr(s))
-                    else:
-                        cancelled += cgi.escape(self.view.substr(s))
-                ht = cancelled + '</span>'
-
-            elif patterns['SEPARATOR'] in i:
-                ht = '<span class="sep">%s</span>' % cgi.escape(self.view.substr(r))
-
-            elif patterns['ARCHIVE'] in i:
-                ht = '<span class="sep-archive">%s</span>' % cgi.escape(self.view.substr(r))
-
-            else:
-                sublime.error_message('Hey! you are not supposed to see this message.\n'
-                                      'Please, report an issue in PlainTasks repository on GitHub.')
-            html_doc.append(ht)
-
+        regions = self.view.split_by_newlines(sublime.Region(0, self.view.size()))
+        html_doc = [self.render_line(region) for region in regions]
         title = os.path.basename(self.view.file_name()) if self.view.file_name() else 'Export'
-        html  = self.produce_html_from_template(title, html_doc)
+        document = self.produce_html_from_template(title, html_doc)
 
         if ask:
-            window = sublime.active_window()
-            nv = window.new_file()
-            nv.set_syntax_file('Packages/HTML/HTML.tmLanguage')
-            nv.set_name(title + '.html')
-            nv.insert(edit, 0, html)
-            window.run_command('close_file')
+            window = self.view.window() or sublime.active_window()
+            output = window.new_file()
+            output.assign_syntax('Packages/HTML/HTML.sublime-syntax')
+            output.set_name(title + '.html')
+            # An edit token belongs to its source view; append obtains a new token.
+            output.run_command('append', {'characters': document})
+            window.run_command('save_as')
             return
 
-        tmp_html = tempfile.NamedTemporaryFile(delete=False, suffix='.html')
-        tmp_html.write(html.encode('utf-8'))
-        tmp_html.close()
-        webbrowser.open_new_tab("file://%s" % tmp_html.name)
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False, suffix='.html') as output:
+            output.write(document)
+        webbrowser.open_new_tab(Path(output.name).as_uri())
+
+    def render_line(self, region):
+        """Render a line with one shared path for task text and inline markup."""
+        scope = self.view.scope_name(region.a)
+        line_classes = {
+            'keyword.control.header.todo': 'header',
+            'meta.item.todo.pending': 'open',
+            'meta.item.todo.completed': 'done',
+            'meta.item.todo.cancelled': 'cancelled',
+            'meta.punctuation.separator.todo': 'sep',
+            'meta.punctuation.archive.todo': 'sep-archive',
+            'notes.todo': 'note',
+        }
+        css_class = next((value for key, value in line_classes.items() if key in scope), 'empty-line')
+        if css_class not in ('open', 'done', 'cancelled', 'note'):
+            return f'<span class="{css_class}">{escape(self.view.substr(region))}</span>'
+
+        scopes = self.extracting_scopes(region)
+        if not scopes:
+            return f'<span class="{css_class}">{escape(self.view.substr(region))}</span>'
+        indent = escape(self.view.substr(sublime.Region(region.a, scopes[0].a)))
+        content = ''.join(self.render_scope(part, css_class) for part in scopes)
+        return f'<span class="{css_class}">{indent}{content}</span>'
+
+    def render_scope(self, region, line_class):
+        scope = self.view.scope_name(region.a)
+        text = self.view.substr(region)
+        escaped = escape(text)
+        if 'bullet' in scope and line_class != 'note':
+            state = {'open': 'pending', 'done': 'done', 'cancelled': 'cancelled'}[line_class]
+            return f'<span class="bullet-{state}">{escaped}</span>'
+        tags = {
+            'tag.todo.completed': 'tag-done',
+            'tag.todo.cancelled': 'tag-cancelled',
+            'tag.todo.today': 'tag-today',
+            'tag.todo.critical': 'tag-critical',
+            'tag.todo.high': 'tag-high',
+            'tag.todo.low': 'tag-low',
+            'meta.tag': 'tag',
+        }
+        css_class = next((value for key, value in tags.items() if key in scope), None)
+        if css_class and line_class != 'note':
+            return f'<span class="{css_class}">{escaped}</span>'
+        if line_class in ('open', 'note'):
+            if 'italic' in scope:
+                content = escape(text.strip('_*'))
+                return f'<i>{content}</i>' if content else ''
+            if 'bold' in scope:
+                content = escape(text.strip('_*'))
+                return f'<b>{content}</b>' if content else ''
+            if 'url' in scope:
+                url = escape(text.strip('<>'), quote=True)
+                return f'<a href="{url}">{url}</a>' if url else ''
+        return escaped
 
     def produce_html_from_template(self, title, html_doc):
-        html_lines = []
-        ppath = sublime.packages_path()
-        tmtheme = os.path.join(ppath, self.view.settings().get('color_scheme').replace('Packages/', '', 1))
-        css = '\n'.join(convert_tmtheme_to_css(tmtheme))
-        with io.open(os.path.join(ppath, 'PlainTasks/templates/template.html'), 'r', encoding='utf8') as template:
-            for line in template:
-                line = (line.replace('$title', title)
-                            .replace('$content', '\n'.join(html_doc))
-                            .replace('$css', css)
-                            .strip('\n'))
-                html_lines.append(line)
-        return u'\n'.join(html_lines)
+        css = self.export_css()
+        template = sublime.load_resource('Packages/PlainTasks/templates/template.html')
+        # Substitute once so placeholders in user text remain literal.
+        return Template(template).substitute(title=escape(title), content='\n'.join(html_doc), css='\n'.join(css))
 
-    def extracting_scopes(self, edit, region, scope_name=''):
-        '''extract scope for each char in line wo dups, ineffective but it works?'''
+    def export_css(self):
+        scheme = self.view.settings().get('color_scheme', '')
+        if scheme.endswith('tmTheme'):
+            try:
+                return theme_to_css(parse_string(sublime.load_resource(scheme)))
+            except (OSError, ValueError):
+                return default_ccsl
+        # Sublime resolves modern color schemes, variables, and inherited rules.
+        selectors = {
+            'body': 'text.todo',
+            'a': 'text.todo todo.url',
+            '.header': 'text.todo keyword.control.header.todo',
+            '.note': 'text.todo notes.todo',
+            '.open': 'text.todo meta.item.todo.pending',
+            '.done': 'text.todo meta.item.todo.completed',
+            '.cancelled': 'text.todo meta.item.todo.cancelled',
+            '.bullet-pending': 'text.todo punctuation.definition.bullet.pending.todo',
+            '.bullet-done': 'text.todo punctuation.definition.bullet.completed.todo',
+            '.bullet-cancelled': 'text.todo punctuation.definition.bullet.cancelled.todo',
+            '.tag': 'text.todo meta.tag.todo',
+            '.tag-done': 'text.todo string.other.tag.todo.completed',
+            '.tag-cancelled': 'text.todo string.other.tag.todo.cancelled',
+            '.tag-today': 'text.todo string.other.tag.todo.today',
+            '.tag-critical': 'text.todo string.other.tag.todo.critical',
+            '.tag-high': 'text.todo string.other.tag.todo.high',
+            '.tag-low': 'text.todo string.other.tag.todo.low',
+            '.sep': 'text.todo meta.punctuation.separator.todo',
+            '.sep-archive': 'text.todo meta.punctuation.archive.todo',
+        }
+        css = []
+        for selector, scope in selectors.items():
+            style = self.view.style_for_scope(scope)
+            props = [f'{key}: {style[value]};' for key, value in
+                     (('color', 'foreground'), ('background-color', 'background')) if style.get(value)]
+            if style.get('bold'):
+                props.append('font-weight: bold;')
+            if style.get('italic'):
+                props.append('font-style: italic;')
+            css.append(f'{selector} {{ {" ".join(props)} }}')
+        return css
+
+    def extracting_scopes(self, region):
+        """Return disjoint inline scopes clipped to this line, in text order."""
+        if region.empty():
+            return []
         scopes = []
-
-        for p in range(region.b-region.a):
-            p += region.a
-            sr = self.view.extract_scope(p)
-            # fix multi-line, because variable region is always a single line
-            if sr.a < region.a or sr.b - 1 > region.b:
-                if scopes and p == scopes[~0].b:  # *text* inbetween *markups*
-                    sr = sublime.Region(p, region.b)
-                else:  # multi-line
-                    sr = sublime.Region(region.a, region.b)
-            # main block, add unique entity to the list
-            if sr not in scopes:
-                scopes.append(sr)
-            elif scopes and self.view.scope_name(p) != self.view.scope_name(scopes[~0].a):
-                scopes.append(sublime.Region(p, region.b))
-            # fix intersecting regions, e.g. markup in notes
-            if scopes and sr.a < scopes[~0].b and p - 1 == scopes[~0].b:
-                scopes.append(sublime.Region(scopes[~0].b, sr.b))
-
-        if scopes and scopes[~0].b > region.b:
-            # avoid line break at eol
-            scopes[~0] = sublime.Region(scopes[~0].a, region.b)
-
-        if len(scopes) > 1:
-            # fix bullet
-            if scopes[0].intersects(scopes[1]):
-                scopes[0] = sublime.Region(scopes[0].a, scopes[1].a)
-            # fix text after tag(s)
-            if scopes[~0].b < region.b or scopes[~0].a < region.a:
-                scopes.append(sublime.Region(scopes[~0].b, region.b))
-            new_scopes = scopes[:0:~0]
-            for i, s in enumerate(new_scopes):
-                # fix overall intersections
-                if s.intersects(scopes[~(i + 1)]):
-                    if scopes[~(i + 1)].b < s.b:
-                        scopes[~i] = sublime.Region(scopes[~(i + 1)].b, s.b)
-                        new_scopes[i] = scopes[~i]
-                    else:
-                        scopes[~(i + 1)] = sublime.Region(scopes[~(i + 1)].a, s.a)
-                        if len(new_scopes) > i + 1:
-                            new_scopes[i + 1] = scopes[~(i + 1)]
+        start = region.a
+        previous = self.view.scope_name(start)
+        for point in range(start + 1, region.b):
+            current = self.view.scope_name(point)
+            if current != previous:
+                scopes.append(sublime.Region(start, point))
+                start, previous = point, current
+        scopes.append(sublime.Region(start, region.b))
         return scopes

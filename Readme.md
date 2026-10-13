@@ -1,15 +1,48 @@
-## [PlainTasks](https://github.com/aziz/PlainTasks) 
+## [PlainTasks](https://github.com/pivst/PlainTasks)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/8d42f3e49d104ab8bf663392661b183b)](https://www.codacy.com/app/allen-bargi/PlainTasks?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=aziz/PlainTasks&amp;utm_campaign=Badge_Grade)
 
-An opinionated todo-list plugin for Sublime Text (2 & 3) editor
+An opinionated todo-list plugin for Sublime Text 4 (build 4205+), targeting the Python 3.14 plugin host. Build 4215 is the current compatibility target.
 ![](http://cl.ly/image/1q100Q212o2Q/ss.png)
 
 ## Installation
-To install this plugin, you have two options:
 
-1. If you have Package Control installed, simply search for `PlainTasks` to install.
+This fork uses Python 3.14, selected by the root `.python-version` file. See
+[Sublime Text's API environments](https://www.sublimetext.com/docs/api_environments.html)
+and [build 4215 release notes](https://www.sublimetext.com/download).
+Sublime Text 2/3 and the Python 3.3/3.8 hosts are no longer supported by this branch.
 
-2. Clone source code to Sublime Text packages folder.
+To install the compatibility branch, open **Preferences → Browse Packages**, move
+any existing `PlainTasks` directory to a backup outside `Packages`, and run this
+command in the packages directory:
+
+```sh
+git clone --branch codex/sublime-4215-python314 https://github.com/pivst/PlainTasks.git PlainTasks
+```
+
+Restart Sublime Text after installation. The folder must be named `PlainTasks`.
+Installing `PlainTasks` from the default Package Control channel may install the
+upstream project instead of this fork.
+
+`dependencies.json` retains the Package Control `dateutil` dependency. Named-month
+and flexible date parsing use `python-dateutil`; standard dates, short dates,
+relative offsets, and the calendar continue to work without it. For a manual
+installation, install the pure Python `python-dateutil` and `six` libraries into
+the editor's **Python 3.14** library directory if they are absent. Obtain the path
+from the Sublime console with:
+
+```python
+from pathlib import Path
+print((Path(sublime.packages_path()).parent / "Lib" / "python314").resolve())
+```
+
+Using an external Python with pip, replace `<library-path>` with that path:
+
+```sh
+python -m pip install --target "<library-path>" "python-dateutil==2.9.0.post0" "six==1.17.0"
+```
+
+See [the compatibility notes](COMPATIBILITY.md) for fixes and validation, and
+[the test instructions](tests/How%20to%20run%20tests.md) for local and editor checks.
 
 ## Start a new todo-list
 Bring up the command palette (it’s <kbd>⌘ + shift + p</kbd> in OS X and <kbd>ctrl + shift + p</kbd> in Windows) and type `task` and select `Tasks: New document` command. 
@@ -176,7 +209,7 @@ Here is a list of PlainTasks’ specific settings:
 | **open_tasks_bullet**          | `☐`              | `-` `❍` `❑` `■` `□` `☐` `▪` `▫` `–` `—` `≡` `→` `›` `[ ]`             |
 | **done_tasks_bullet**          | `✔`              | `✓` `☑` `+` `[x]`                                                      |
 | **cancelled_tasks_bullet**     | `✘`              | `x` `[-]`                                                               |
-| **date_format**                | `(%y-%m-%d %H:%M)` | See [strfti.me](http://www.strfti.me/) for quick reference; detailed documentation: [ST2](https://docs.python.org/2.6/library/datetime.html#strftime-and-strptime-behavior), [ST3](https://docs.python.org/3.3/library/datetime.html#strftime-and-strptime-behavior) |
+| **date_format**                | `(%y-%m-%d %H:%M)` | See [strfti.me](http://www.strfti.me/) for quick reference; detailed documentation: [Python 3.14](https://docs.python.org/3.14/library/datetime.html#strftime-and-strptime-behavior) |
 | **done_tag**                   | true             | Determines whether done tasks should gain a `@done` tag or not          |
 | **done_date**                  | true             | Determines whether done tasks should gain a date or not                 |
 | **before_tasks_bullet_margin** | 1                | Determines the number of spaces (default indent) before the task bullet |

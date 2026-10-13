@@ -1,16 +1,7 @@
-# coding: utf8
-
-import sublime
-import sys
 from unittest import TestCase
 from datetime import datetime, timedelta
 
-ST3 = int(sublime.version()) >= 3000
-
-if ST3:
-    PlainTasksDates = sys.modules['PlainTasks.PlainTasksDates']
-else:
-    PlainTasksDates = sys.modules['PlainTasksDates']
+from PlainTasks import PlainTasksDates
 
 
 class TestDatesFunctions(TestCase):

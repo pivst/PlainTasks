@@ -1,17 +1,14 @@
-# coding: utf-8
-import sublime, sublime_plugin
 import itertools
 
-ST3 = int(sublime.version()) >= 3000
-if not ST3:
-    import locale
+import sublime
+import sublime_plugin
 
 
 def get_all_projects_and_separators(view):
     # because tmLanguage need \n to make background full width of window
     # multiline headers are possible, thus we have to split em to be sure that
     # one header == one line
-    projects = itertools.chain(*[view.lines(r) for r in view.find_by_selector('keyword.control.header.todo')])
+    projects = itertools.chain.from_iterable(view.lines(r) for r in view.find_by_selector('keyword.control.header.todo'))
     return sorted(list(projects) +
                   view.find_by_selector('meta.punctuation.separator.todo'))
 
@@ -25,9 +22,9 @@ class PlainTasksBase(sublime_plugin.TextCommand):
             self.open_tasks_bullet = self.done_tasks_bullet = self.canc_tasks_bullet = '-'
             self.before_date_space = ''
         else:
-            self.open_tasks_bullet = settings.get('open_tasks_bullet', u'☐')
-            self.done_tasks_bullet = settings.get('done_tasks_bullet', u'✔')
-            self.canc_tasks_bullet = settings.get('cancelled_tasks_bullet', u'✘')
+            self.open_tasks_bullet = settings.get('open_tasks_bullet', '☐')
+            self.done_tasks_bullet = settings.get('done_tasks_bullet', '✔')
+            self.canc_tasks_bullet = settings.get('cancelled_tasks_bullet', '✘')
             self.before_date_space = settings.get('before_date_space', ' ')
 
         translate_tabs_to_spaces = settings.get('translate_tabs_to_spaces', False)
@@ -46,18 +43,13 @@ class PlainTasksBase(sublime_plugin.TextCommand):
         self.project_postfix = settings.get('project_tag', True)
         self.archive_name = settings.get('archive_name', 'Archive:')
         # org-mode style archive stuff
-        self.archive_org_default_filemask = u'{dir}{sep}{base}_archive{ext}'
+        self.archive_org_default_filemask = '{dir}{sep}{base}_archive{ext}'
         self.archive_org_filemask = settings.get('archive_org_filemask', self.archive_org_default_filemask)
 
-        if not ST3:
-            self.sys_enc = locale.getpreferredencoding()
         self.runCommand(edit, **kwargs)
 
-    def format_line_end(self, tag, tznow):
-        try:
-            date = tznow.strftime(self.date_format).decode(self.sys_enc)
-        except:
-            date = tznow.strftime(self.date_format)
+    def format_line_end(self, tag: str, tznow) -> tuple[str, str]:
+        date = tznow.strftime(self.date_format)
         done_line_end = ' %s%s%s' % (tag, self.before_date_space, date if self.done_date else '')
         return done_line_end.replace('  ', ' ').rstrip(), date
 
@@ -72,6 +64,8 @@ class PlainTasksEnabled(sublime_plugin.TextCommand):
 class PlainTasksFold(PlainTasksEnabled):
     def exec_folding(self, visible_region):
         self.view.unfold(sublime.Region(0, self.view.size()))
+        if not visible_region:
+            return
         for i, d in enumerate(visible_region):
             if not i:  # beginning of document
                 self.folding(0, d.a - 1)

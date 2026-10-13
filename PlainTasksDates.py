@@ -1,45 +1,35 @@
-# coding: utf-8
-import sublime, sublime_plugin
+"""Date parsing, due highlighting, and calendar commands."""
+
+import calendar
+from calendar import monthrange
+from datetime import datetime, timedelta
+import itertools
 import json
 import re
-import locale
-import calendar
-import itertools
-from datetime import datetime
-from datetime import timedelta
 
-NT = sublime.platform() == 'windows'
-ST3 = int(sublime.version()) >= 3000
-if ST3:
-    from .APlainTasksCommon import PlainTasksBase, PlainTasksEnabled, PlainTasksFold
-    MARK_SOON = sublime.DRAW_NO_FILL
-    MARK_INVALID = sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE | sublime.DRAW_SQUIGGLY_UNDERLINE
-else:
-    from APlainTasksCommon import PlainTasksBase, PlainTasksEnabled, PlainTasksFold
-    MARK_SOON = MARK_INVALID = 0
-    sublime_plugin.ViewEventListener = object
+import sublime
+import sublime_plugin
 
+from .APlainTasksCommon import PlainTasksBase, PlainTasksEnabled, PlainTasksFold
+
+MARK_SOON = sublime.DRAW_NO_FILL
+MARK_INVALID = sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE | sublime.DRAW_SQUIGGLY_UNDERLINE
 
 try:  # unavailable dependencies shall not break basic functionality
     from dateutil import parser as dateutil_parser
-    from dateutil.relativedelta import relativedelta
-except:
+except ImportError:
     dateutil_parser = None
 
 
-if ST3:
-    locale.setlocale(locale.LC_ALL, '')
-
-
-def is_yearfirst(date_format):
+def is_yearfirst(date_format: str) -> bool:
     return date_format.strip('(  )').startswith(('%y', '%Y'))
 
 
-def is_dayfirst(date_format):
-    return date_format.strip('(  )').startswith(('%d'))
+def is_dayfirst(date_format: str) -> bool:
+    return date_format.strip('(  )').startswith('%d')
 
 
-def _convert_date(matchstr, now):
+def _convert_date(matchstr: str, now: datetime) -> tuple[int, int, int, int, int]:
     match_obj = re.search(r'''(?mxu)
         (?:\s*
          (?P<yearORmonthORday>\d*(?!:))
@@ -91,7 +81,7 @@ def _convert_date(matchstr, now):
     return year, month, day, hour, minute
 
 
-def convert_date(matchstr, now):
+def convert_date(matchstr: str, now: datetime) -> tuple[datetime | None, tuple | None]:
     year = month = day = hour = minute = None
     try:
         year, month, day, hour, minute = _convert_date(matchstr, now)
@@ -116,8 +106,8 @@ def increase_date(view, region, text, now, date_format):
                                              default=now)
             if error:
                 ln = (view.rowcol(line.a)[0] + 1)
-                print(u'\nPlainTasks:\nError at line %d\n\t%s\ncaused by text:\n\t"%s"\n' % (ln, error, created.group(0)))
-                sublime.status_message(u'@created date is invalid at line %d, see console for details' % ln)
+                print('\nPlainTasks:\nError at line %d\n\t%s\ncaused by text:\n\t"%s"\n' % (ln, error, created.group(0)))
+                sublime.status_message('@created date is invalid at line %d, see console for details' % ln)
             else:
                 now = created_date
 
@@ -155,10 +145,14 @@ def increase_date(view, region, text, now, date_format):
 
 
 def expand_short_date(view, start, end, now, date_format):
-    while view.substr(start) != '(':
+    line = view.line(start)
+    while start >= line.a and view.substr(start) != '(':
         start -= 1
-    while view.substr(end) != ')':
+    while end < line.b and view.substr(end) != ')':
         end += 1
+    if start < line.a or view.substr(end) != ')':
+        error = (ValueError('Date tag must contain matching parentheses'), None, None, None, None, None)
+        return None, error, line
     region = sublime.Region(start + 1, end)
     text = view.substr(region)
     # print(text)
@@ -175,53 +169,38 @@ def expand_short_date(view, start, end, now, date_format):
     return date, error, sublime.Region(start, end + 1)
 
 
-def parse_date(date_string, date_format='(%y-%m-%d %H:%M)', yearfirst=True, dayfirst=False, default=None):
-    '''
-    Attempt to convert arbitrary string to datetime object
-    date_string
-        Unicode
-    date_format
-        Unicode
-    yearfirst
-        boolin
-    default
-        datetime object (now)
-    '''
+def parse_date(date_string: str, date_format: str = '(%y-%m-%d %H:%M)',
+               yearfirst: bool = True, dayfirst: bool = False,
+               default: datetime | None = None) -> tuple[datetime | None, tuple | None]:
+    """Parse a date while preserving PlainTasks' forward-looking short dates."""
+    default = default if default is not None else datetime.now().replace(second=0, microsecond=0)
     try:
         return datetime.strptime(date_string, date_format), None
-    except ValueError as e:
-        # print(e)
+    except ValueError:
         pass
     bare_date_string = date_string.strip('( )')
     items = len(bare_date_string.split('-' if '-' in bare_date_string else '.'))
+    # Short dates deliberately roll forward; dateutil uses the current month/year.
+    short_date = (items < 2 and len(bare_date_string) < 3) or (items < 3 and any(s in date_string for s in '-.'))
+    if dateutil_parser is None or short_date:
+        return convert_date(bare_date_string, default)
     try:
-        if items < 2 and len(bare_date_string) < 3:
-            # e.g. @due(1) is always first day of next month,
-            # but dateutil consider it 1st day of current month
-            raise Exception("Special case of short date: less than 2 numbers")
-        if items < 3 and any(s in date_string for s in '-.'):
-            # e.g. @due(2-1) is always Fabruary 1st of next year,
-            # but dateutil consider it this year
-            raise Exception("Special case of short date: less than 3 numbers")
         date = dateutil_parser.parse(bare_date_string,
                                      yearfirst=yearfirst,
                                      dayfirst=dayfirst,
                                      default=default)
-        if NT and all((date.year < 1900, '%y' in date_format)):
-            return None, ('format %y requires year >= 1900 on Windows', date.year, date.month, date.day, date.hour, date.minute)
-    except Exception as e:
-        # print(e)
-        date, error = convert_date(bare_date_string, default)
-    else:
-        error = None
-    return date, error
+    except (ValueError, OverflowError):
+        return convert_date(bare_date_string, default)
+    if date.year < 1000 and '%y' in date_format:
+        return None, ('Years before 1000 require %Y to avoid losing the century', date.year, date.month, date.day, date.hour, date.minute)
+    return date, None
 
 
 def format_delta(view, delta):
     delta -= timedelta(microseconds=delta.microseconds)
     if view.settings().get('decimal_minutes', False):
         days = delta.days
-        delta = u'%s%s%s%s' % (days or '', ' day, ' if days == 1 else '', ' days, ' if days > 1 else '', '%.2f' % (delta.seconds / 3600.0) if delta.seconds else '')
+        delta = '%s%s%s%s' % (days or '', ' day, ' if days == 1 else '', ' days, ' if days > 1 else '', '%.2f' % (delta.seconds / 3600.0) if delta.seconds else '')
     else:
         delta = str(delta)
     if delta[~7:] == ' 0:00:00' or delta == '0:00:00':  # strip meaningless time
@@ -244,8 +223,7 @@ class PlainTasksToggleHighlightPastDue(PlainTasksEnabled):
         dates_strings = []
         dates_regions = self.view.find_all(pattern, 0, '\\1', dates_strings)
         if not dates_regions:
-            if ST3:
-                self.view.settings().set('plain_tasks_remain_time_phantoms', [])
+            self.view.settings().set('plain_tasks_remain_time_phantoms', [])
             return
 
         past_due, due_soon, misformatted, phantoms = self.group_due_tags(dates_strings, dates_regions)
@@ -260,8 +238,6 @@ class PlainTasksToggleHighlightPastDue(PlainTasksEnabled):
         self.view.add_regions('due_soon', due_soon, scope_due_soon, icon_due_soon, MARK_SOON)
         self.view.add_regions('misformatted', misformatted, scope_misformatted, icon_misformatted, MARK_INVALID)
 
-        if not ST3:
-            return
         if self.view.settings().get('show_remain_due', False):
             self.view.settings().set('plain_tasks_remain_time_phantoms', phantoms)
         else:
@@ -300,8 +276,7 @@ class PlainTasksToggleHighlightPastDue(PlainTasksEnabled):
                     phantoms.append((region.a, format_delta(self.view, date - default)))
                     if due_soon_threshold:
                         td = (date - now)
-                        # timedelta.total_seconds() is not available in 2.6.x
-                        time_left = (td.microseconds + (td.seconds + td.days * 24 * 3600) * 10**6) / 10.0**6
+                        time_left = td.total_seconds()
                         if time_left < due_soon_threshold:
                             due_soon.append(region)
         return past_due, due_soon, misformatted, phantoms
@@ -599,7 +574,6 @@ class PlainTasksCalendar(sublime_plugin.TextCommand):
                    '<br> time to switch the picker <br><br>'
                    )
 
-        locale.setlocale(locale.LC_ALL, '')  # to get native month name
         month = '<a href="month:{0}-{1}-{2}-{3}-{4}">{5}</a>'.format(y, m, d, H, M, date.strftime('%B'))
         prev_month = '<a href="prev_month:{0}-{1}-{2}-{3}-{4}">←</a>'.format(y, m, d, H, M)
         next_month = '<a href="next_month:{0}-{1}-{2}-{3}-{4}">→</a>'.format(y, m, d, H, M)
@@ -667,15 +641,14 @@ class PlainTasksCalendar(sublime_plugin.TextCommand):
 
         def calendar(stamp):
             y, m, d, H, M = (int(i) for i in stamp.split('-'))
-            if m == 2 and d > 28:
-                d = 28
-            elif d == 31 and m in (4, 6, 9, 11):
-                d = 30
+            d = min(d, monthrange(y, m)[1])
             self.view.update_popup(self.generate_calendar(date=datetime(y, m, d, H, M, 0)))
 
         def shift(stamp, month=0, year=0):
             y, m, d, H, M = (int(i) for i in stamp.split('-'))
-            date = datetime(y, m, d, H, M, 0) + relativedelta(months=month, years=year)
+            y, m = divmod(y * 12 + m - 1 + month + year * 12, 12)
+            m += 1
+            date = datetime(y, m, min(d, monthrange(y, m)[1]), H, M)
             self.view.update_popup(self.generate_calendar(date))
 
         case = {
