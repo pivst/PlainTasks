@@ -4,9 +4,9 @@ This models the exercised API contracts, not Sublime's syntax engine or UI.
 It is never installed when the suite runs inside Sublime Text.
 """
 
-from pathlib import Path
 import sys
 import types
+from pathlib import Path
 
 
 class Region:
@@ -59,7 +59,7 @@ class Settings(dict):
 
 
 class View:
-    def __init__(self, text='', settings=None):
+    def __init__(self, text="", settings=None):
         self.text = text
         self._settings = Settings(settings or {})
         self._selection = Selection([Region(0)])
@@ -82,53 +82,82 @@ class View:
 
     def substr(self, region):
         if isinstance(region, int):
-            return self.text[region] if 0 <= region < self.size() else ''
-        return self.text[region.begin():region.end()]
+            return self.text[region] if 0 <= region < self.size() else ""
+        return self.text[region.begin() : region.end()]
 
     def line(self, point):
         point = point.begin() if isinstance(point, Region) else point
-        start = self.text.rfind('\n', 0, point) + 1
-        end = self.text.find('\n', point)
+        start = self.text.rfind("\n", 0, point) + 1
+        end = self.text.find("\n", point)
         return Region(start, self.size() if end < 0 else end)
 
     def lines(self, region):
         return self.split_by_newlines(region)
 
     def split_by_newlines(self, region):
-        return [self.line(region.a + sum(len(s) + 1 for s in self.text[region.a:region.b].split('\n')[:i]))
-                for i, _ in enumerate(self.text[region.a:region.b].split('\n'))]
+        return [
+            self.line(
+                region.a + sum(len(s) + 1 for s in self.text[region.a : region.b].split("\n")[:i])
+            )
+            for i, _ in enumerate(self.text[region.a : region.b].split("\n"))
+        ]
 
     def scope_name(self, point):
         if self.scope:
             return self.scope
         text = self.substr(self.line(point)).lstrip()
-        state = {'☐': 'pending', '✔': 'completed', '✘': 'cancelled'}.get(text[:1])
+        state = {"☐": "pending", "✔": "completed", "✘": "cancelled"}.get(text[:1])
         if state:
-            return f'text.todo meta.item.todo.{state} '
-        return 'text.todo keyword.control.header.todo ' if text.endswith(':') else 'text.todo notes.todo '
+            return f"text.todo meta.item.todo.{state} "
+        return (
+            "text.todo keyword.control.header.todo "
+            if text.endswith(":")
+            else "text.todo notes.todo "
+        )
 
     def extract_scope(self, point):
         return self.line(point)
 
+    def extract_tokens_with_scopes(self, region):
+        if region.empty():
+            return []
+        tokens = []
+        start = region.begin()
+        scope = self.scope_name(start)
+        for point in range(start + 1, region.end()):
+            current = self.scope_name(point)
+            if current != scope:
+                tokens.append((Region(start, point), scope))
+                start, scope = point, current
+        tokens.append((Region(start, region.end()), scope))
+        return tokens
+
     def score_selector(self, *args):
         return 1
 
+    def match_selector(self, point, selector):
+        scopes = self.scope_name(point).split()
+        return any(
+            any(scope == term or scope.startswith(term + ".") for scope in scopes)
+            for term in selector.split(",")
+        )
+
     def rowcol(self, point):
-        return self.text[:point].count('\n'), point - self.line(point).a
+        return self.text[:point].count("\n"), point - self.line(point).a
 
     def insert(self, edit, point, text):
-        assert edit is self.edit, 'Edit token belongs to another view'
+        assert edit is self.edit, "Edit token belongs to another view"
         self.text = self.text[:point] + text + self.text[point:]
         return len(text)
 
     def replace(self, edit, region, text):
         assert edit is self.edit
-        self.text = self.text[:region.begin()] + text + self.text[region.end():]
+        self.text = self.text[: region.begin()] + text + self.text[region.end() :]
 
     def run_command(self, command, args=None):
         self.commands.append((command, args))
-        if command == 'append':
-            self.insert(self.edit, self.size(), args['characters'])
+        if command == "append":
+            self.insert(self.edit, self.size(), args["characters"])
 
     def window(self):
         return self._window
@@ -139,14 +168,17 @@ class View:
     def set_name(self, name):
         self._name = name
 
+    def erase_status(self, key):
+        pass
+
     def assign_syntax(self, syntax):
-        self._settings.set('syntax', syntax)
+        self._settings.set("syntax", syntax)
 
     def style_for_scope(self, scope):
-        return {'foreground': '#112233', 'background': '#ffffff'}
+        return {"foreground": "#112233", "background": "#ffffff"}
 
     def style(self):
-        return {'foreground': '#112233', 'background': '#ffffff'}
+        return {"foreground": "#112233", "background": "#ffffff"}
 
     def viewport_extent(self):
         return 901.5, 601.5
@@ -190,23 +222,38 @@ class WindowCommand:
 
 
 def install():
-    sublime = types.ModuleType('sublime')
+    sublime = types.ModuleType("sublime")
     sublime._plaintasks_test_stub = True
-    sublime.version = lambda: '4215'
-    sublime.platform = lambda: 'linux'
+    sublime.version = lambda: "4215"
+    sublime.platform = lambda: "linux"
     sublime.Region = Region
-    for index, name in enumerate(('DRAW_NO_FILL', 'DRAW_NO_OUTLINE', 'DRAW_SQUIGGLY_UNDERLINE',
-                                  'HOVER_TEXT', 'LITERAL', 'COOPERATE_WITH_AUTO_COMPLETE',
-                                  'LAYOUT_INLINE', 'LAYOUT_BELOW', 'ENCODED_POSITION')):
+    sublime.SymbolSource = types.SimpleNamespace(INDEX="index")
+    sublime.SymbolType = types.SimpleNamespace(DEFINITION="definition")
+    for index, name in enumerate(
+        (
+            "DRAW_NO_FILL",
+            "DRAW_NO_OUTLINE",
+            "DRAW_SQUIGGLY_UNDERLINE",
+            "HOVER_TEXT",
+            "LITERAL",
+            "COOPERATE_WITH_AUTO_COMPLETE",
+            "LAYOUT_INLINE",
+            "LAYOUT_BELOW",
+            "ENCODED_POSITION",
+            "HIDDEN",
+        )
+    ):
         setattr(sublime, name, 1 << index)
     sublime.error_message = lambda message: None
     sublime.status_message = lambda message: None
     root = Path(__file__).resolve().parents[2]
-    sublime.load_resource = lambda path: (root / path.removeprefix('Packages/PlainTasks/')).read_text(encoding='utf-8')
-    plugin = types.ModuleType('sublime_plugin')
+    sublime.load_resource = lambda path: (
+        root / path.removeprefix("Packages/PlainTasks/")
+    ).read_text(encoding="utf-8")
+    plugin = types.ModuleType("sublime_plugin")
     plugin.TextCommand = TextCommand
     plugin.WindowCommand = WindowCommand
-    plugin.EventListener = type('EventListener', (), {})
+    plugin.EventListener = type("EventListener", (), {})
     plugin.ViewEventListener = TextCommand
-    sys.modules['sublime'] = sublime
-    sys.modules['sublime_plugin'] = plugin
+    sys.modules["sublime"] = sublime
+    sys.modules["sublime_plugin"] = plugin

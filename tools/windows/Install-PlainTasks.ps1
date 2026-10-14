@@ -7,9 +7,10 @@ Packages/User (personal settings, shortcuts and task files) is never modified.
 param(
     [Parameter(Mandatory = $true, ParameterSetName = 'Portable')][string]$PortablePath,
     [Parameter(Mandatory = $true, ParameterSetName = 'Data')][string]$DataPath,
-    [string]$BundleRoot = (Split-Path -Parent $PSScriptRoot),
+    [string]$BundleRoot,
     [switch]$BackupExisting
 )
+if (!$BundleRoot) { $BundleRoot = Split-Path -Parent $PSScriptRoot }
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $manifest = Get-PTBundle $BundleRoot
 if (!$manifest.dependency_libraries_included) { throw 'This bundle has no offline dateutil/six libraries. Build with --libraries before installing.' }

@@ -3,11 +3,13 @@
 param(
     [Parameter(Mandatory = $true, ParameterSetName = 'Zip')][string]$PortableZip,
     [Parameter(Mandatory = $true, ParameterSetName = 'Path')][string]$PortablePath,
-    [string]$WorkRoot = (Join-Path $env:TEMP ('PlainTasks-4215-' + [Guid]::NewGuid().ToString('N'))),
-    [string]$BundleRoot = (Split-Path -Parent $PSScriptRoot),
+    [string]$WorkRoot,
+    [string]$BundleRoot,
     [ValidateRange(15, 600)][int]$TimeoutSeconds = 120,
     [switch]$KeepOpen
 )
+if (!$BundleRoot) { $BundleRoot = Split-Path -Parent $PSScriptRoot }
+if (!$WorkRoot) { $WorkRoot = Join-Path ([IO.Path]::GetTempPath()) ('PlainTasks-4215-' + [Guid]::NewGuid().ToString('N')) }
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $editor = $null
 try {
@@ -82,11 +84,12 @@ try {
     }
     if ($result.build -ne '4215' -or $result.platform -ne 'windows' -or $result.arch -ne 'x64' -or
         $result.python -notmatch '^3\.14\.' -or $result.dateutil_available -ne $true -or
-        $result.ok -ne $true -or $result.failed -ne 0 -or $result.passed -lt 19) {
+        $result.ok -ne $true -or $result.failed -ne 0 -or $result.passed -lt 1 -or
+        $result.passed -ne $result.expected_checks) {
         throw "Editor tests failed or ran in the wrong runtime; inspect $report."
     }
     Write-Host "PASS: $($result.passed) checks; report: $report"
-    Write-Host 'Complete the native keyboard, Save As, browser and popup checks in WINDOWS_4215.md before acceptance.'
+    Write-Host 'Complete the native keyboard, Save As, browser and popup checks in docs/development.md.'
     $exitCode = 0
 } catch {
     Write-Error -Message $_ -ErrorAction Continue

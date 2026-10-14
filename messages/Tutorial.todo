@@ -28,23 +28,24 @@ Tasks:
    ☐ You can navigate tags in current document via ⌘+shift+r (ctrl+shift+r on Windows)
   URLs:
    ☐ ⌘+shift+U (ctrl+shift+U on Windows) opens the URL under the cursor in your default browser
-     www.github.com or <skype:nickname>
+     www.github.com or <mailto:person@example.com>
   File links:
    ☐ You can create a link to a file by prefixing the file name with a dot and (back)slash sign
      like: .\filename\ or ./another filename/
      It supports only one filename per line
      Filename can be absolute path or relative one (to project folder(s) or to open files)
    ☐ The line and column numbers can be specified by colons after the filename: .\filename:11:8
-   ☐ In SublimeText 3 you can specify a symbol inside the file by using > character like: .\filename>symbol
-   ☐ In SublimeText 2 you can specify a text inside that file by using double quotes like: .\filename"any text"
-   ☐ ctrl+o (alt+o on Windows) opens the file in Sublime: try to open .\install.txt\
-   ☐ In SublimeText 3 link may point to directory, open such link will add the directory to current project (sidebar), e.g. .\..\PlainTasks\
+   ☐ You can specify a symbol inside the file by using > character like: .\filename>symbol
+   ☐ You can specify a text inside that file by using double quotes like: .\filename"any text"
+   ☐ ctrl+o (alt+o on Windows) opens the linked file in Sublime.
+     Save this document and replace these examples with paths to your own files.
+   ☐ A link may point to directory, open such link will add the directory to current project (sidebar), e.g. .\..\PlainTasks\
    ☐ Other ways to create file links:
-      [](install.txt)  ← try to open it
+      [Notes](notes.txt)
       [](path ":11:8")
       [](path ">symbol")
       [](path "any text")
-      [[..\PlainTasks.py]]  ← try to open it
+      [[..\notes.txt]]
       [[path::11:8]]
       [[path::*symbol]]
       [[path::any text]]
@@ -122,15 +123,13 @@ FileType Support:
 
 You can customize:
  ☐ New and done bullets
- ☐ List of file-types that should be considered todo lists
+ ☐ Associate custom files with Tasks via View → Syntax
  ☐ Key-bindings if you don’t like the default ones
  ☐ Date formatting for done tasks
  ☐ Colour scheme
  ☐ Statistics appearance
- ☐ Icon for file-type
  ☐ and more
- See the Readme file on github on how to do these customizations. https://github.com/aziz/PlainTasks
- or in Sublime ./../Readme.md"## Settings"
+ See the project documentation: https://github.com/pivst/PlainTasks
 
 Editor Useful Tools:
  ☐ Use ⌘+control+up/down (ctrl+shift+up/down on Windows) to move tasks up and down.

@@ -1,109 +1,42 @@
 [
-    {
-        "caption": "Preferences",
-        "mnemonic": "n",
-        "id": "preferences",
-        "children":
-        [
-            {
-                "caption": "Package Settings",
-                "mnemonic": "P",
-                "id": "package-settings",
-                "children":
-                [
-                    {
-                        "caption": "PlainTasks",
-                        "children":
-                        [
-                            {
-                                "command": "plain_tasks_open_resource",
-                                "args": {"resource": "messages/Tutorial.todo"},
-                                "caption": "Tutorial"
-                            },
-                            { "caption": "-" },
-                            {
-                                "command": "plain_tasks_open_resource",
-                                "args": {
-                                    "resource": "PlainTasks (OSX).sublime-settings",
-                                    "platform": "OSX"
-                                },
-                                "caption": "Settings – Default"
-                            },
-                            {
-                                "command": "plain_tasks_open_resource",
-                                "args": {
-                                    "resource": "PlainTasks (Linux).sublime-settings",
-                                    "platform": "Linux"
-                                },
-                                "caption": "Settings – Default"
-                            },
-                            {
-                                "command": "plain_tasks_open_resource",
-                                "args": {
-                                    "resource": "PlainTasks (Windows).sublime-settings",
-                                    "platform": "Windows"
-                                },
-                                "caption": "Settings – Default"
-                            },
-                            {
-                                "command": "open_file",
-                                "args": {"file": "${packages}/User/PlainTasks.sublime-settings"},
-                                "caption": "Settings – User"
-                            },
-                            { "caption": "-" },
-                            {
-                                "command": "plain_tasks_open_resource",
-                                "args": {
-                                    "resource": "Default (OSX).sublime-keymap",
-                                    "platform": "OSX"
-                                },
-                                "caption": "Key Bindings – Default"
-                            },
-                            {
-                                "command": "plain_tasks_open_resource",
-                                "args": {
-                                    "resource": "Default (Linux).sublime-keymap",
-                                    "platform": "Linux"
-                                },
-                                "caption": "Key Bindings – Default"
-                            },
-                            {
-                                "command": "plain_tasks_open_resource",
-                                "args": {
-                                    "resource": "Default (Windows).sublime-keymap",
-                                    "platform": "Windows"
-                                },
-                                "caption": "Key Bindings – Default"
-                            },
-                            {
-                                "command": "open_file",
-                                "args": {
-                                    "file": "${packages}/User/Default (OSX).sublime-keymap",
-                                    "platform": "OSX"
-                                },
-                                "caption": "Key Bindings – User"
-                            },
-                            {
-                                "command": "open_file",
-                                "args": {
-                                    "file": "${packages}/User/Default (Linux).sublime-keymap",
-                                    "platform": "Linux"
-                                },
-                                "caption": "Key Bindings – User"
-                            },
-                            {
-                                "command": "open_file",
-                                "args": {
-                                    "file": "${packages}/User/Default (Windows).sublime-keymap",
-                                    "platform": "Windows"
-                                },
-                                "caption": "Key Bindings – User"
-                            },
-                            { "caption": "-" }
-                        ]
-                    }
-                ]
-            }
+  {
+    "caption": "Preferences",
+    "id": "preferences",
+    "children": [
+      {
+        "caption": "Package Settings",
+        "id": "package-settings",
+        "children": [
+          {
+            "caption": "PlainTasks",
+            "children": [
+              {
+                "caption": "Tutorial",
+                "command": "plain_tasks_open_resource",
+                "args": {
+                  "resource": "messages/Tutorial.todo"
+                }
+              },
+              {
+                "caption": "Settings",
+                "command": "edit_settings",
+                "args": {
+                  "base_file": "${packages}/PlainTasks/PlainTasks.sublime-settings",
+                  "default": "{\n\t$0\n}\n"
+                }
+              },
+              {
+                "caption": "Key Bindings",
+                "command": "edit_settings",
+                "args": {
+                  "base_file": "${packages}/PlainTasks/Default ($platform).sublime-keymap",
+                  "default": "[\n\t$0\n]\n"
+                }
+              }
+            ]
+          }
         ]
-    }
+      }
+    ]
+  }
 ]

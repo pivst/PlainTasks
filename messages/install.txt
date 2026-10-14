@@ -1,4 +1,4 @@
-Thank you for installing PlainTasks.
+PlainTasks requires Sublime Text 4215 or later with the Python 3.14 plugin host.
 
-For quick start you probably would like to go through a short tutorial:
-Preferences → Package Settings → PlainTasks → Tutorial
+Open Preferences → Package Settings → PlainTasks → Tutorial to get started.
+Use Settings in the same menu to customize the package.

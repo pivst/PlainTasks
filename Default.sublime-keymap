@@ -38,23 +38,23 @@
       { "key": "selector", "operator": "equal", "operand": "text.todo todo.bold"}
     ]
   },
-  { "keys": ["_"], "command": "plain_tasks_remove_bold", "context":
+  { "keys": ["_"], "command": "plain_tasks_remove_bold", "args": {"char": "_"}, "context":
     [
       { "key": "setting.auto_match_enabled", "operator": "equal", "operand": true},
       { "key": "selector", "operator": "equal", "operand": "text.todo todo.bold"}
     ]
   },
-  // same for single selection, we probably should fix it in syntax: **** defined as italic, but in fact it is [supposed to be] bold
+  // Toggle an empty bold pair between two matching delimiters.
   { "keys": ["*"], "command": "plain_tasks_remove_bold",  "context":
     [
       { "key": "setting.auto_match_enabled", "operator": "equal", "operand": true },
       { "key": "selection_empty", "operator": "equal", "operand": true, "match_all": true },
-      { "key": "preceding_text", "operator": "regex_contains", "operand": "\\**$", "match_all": true },
-      { "key": "following_text", "operator": "regex_contains", "operand": "^\\**", "match_all": true },
+      { "key": "preceding_text", "operator": "regex_contains", "operand": "\\*\\*$", "match_all": true },
+      { "key": "following_text", "operator": "regex_contains", "operand": "^\\*\\*", "match_all": true },
       { "key": "selector", "operator": "equal", "operand": "text.todo todo.italic"}
     ]
   },
-  { "keys": ["_"], "command": "plain_tasks_remove_bold",  "context":
+  { "keys": ["_"], "command": "plain_tasks_remove_bold", "args": {"char": "_"}, "context":
     [
       { "key": "setting.auto_match_enabled", "operator": "equal", "operand": true },
       { "key": "selection_empty", "operator": "equal", "operand": true, "match_all": true },

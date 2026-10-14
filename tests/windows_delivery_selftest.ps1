@@ -6,10 +6,11 @@ PowerShell 7 can also run these file-operation checks on macOS; that does not ve
 #>
 [CmdletBinding()]
 param(
-    [string]$RepositoryRoot = (Split-Path -Parent $PSScriptRoot),
+    [string]$RepositoryRoot,
     [Parameter(Mandatory = $true)][string]$BundleRoot,
     [string]$TestRoot = (Join-Path ([IO.Path]::GetTempPath()) ('PlainTasks-delivery-selftest-' + [Guid]::NewGuid().ToString('N')))
 )
+if (!$RepositoryRoot) { $RepositoryRoot = Split-Path -Parent $PSScriptRoot }
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = [IO.Path]::GetFullPath($RepositoryRoot)
 $BundleRoot = [IO.Path]::GetFullPath($BundleRoot)
@@ -97,6 +98,92 @@ if (!$blocked -or (Get-Content -LiteralPath $failurePackage -Raw) -ne 'original-
 $rollbackMarkers = @(Get-ChildItem -LiteralPath (Join-Path $failureData 'PlainTasks Backups') -Recurse -Filter 'ROLLED_BACK.txt' -File)
 if ($rollbackMarkers.Count -ne 1) { throw 'Failed installation did not record its automatic rollback.' }
 Write-Host 'PASS: installation failure after package replacement automatically restores originals'
+# Exercise the real -File entry point with omitted BundleRoot from an unrelated CWD.
+# Windows PowerShell 5.1 binds script parameters before populating PSScriptRoot.
+$cliData = Join-Path $TestRoot 'cli-data'
+$cliScript = Join-Path $bundle 'windows\Install-PlainTasks.ps1'
+$engine = (Get-Process -Id $PID).Path
+Push-Location $TestRoot
+try {
+    & $engine -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $cliScript -DataPath $cliData
+    if ($LASTEXITCODE -ne 0) { throw 'Installer -File entry point failed with the default bundle directory.' }
+} finally { Pop-Location }
+if (!(Test-Path -LiteralPath (Join-Path $cliData 'Installed Packages\PlainTasks.sublime-package'))) {
+    throw 'Installer -File entry point did not install the package.'
+}
+Write-Host 'PASS: external -File entry point resolves default bundle independently of CWD'
+# Simulate a locked old-library move after the package was already restored.
+# A second invocation must resume safely, and changes to an already restored
+# item must stop that invocation before another target is touched.
+$resumeData = Join-Path $TestRoot 'resume-restore-data'
+$resumePackage = Join-Path $resumeData 'Installed Packages\PlainTasks.sublime-package'
+$resumeLibrary = Join-Path $resumeData 'Lib\python314\dateutil'
+$null = New-Item -ItemType Directory -Path (Split-Path -Parent $resumePackage) -Force
+$null = New-Item -ItemType Directory -Path $resumeLibrary -Force
+Write-PTUtf8 $resumePackage 'package-before-interrupted-restore'
+Write-PTUtf8 (Join-Path $resumeLibrary '__init__.py') 'library-before-interrupted-restore'
+& (Join-Path $scripts 'Install-PlainTasks.ps1') -DataPath $resumeData -BundleRoot $bundle -BackupExisting
+$resumeJournal = @(Get-ChildItem -LiteralPath (Join-Path $resumeData 'PlainTasks Backups') -Recurse -Filter 'restore.json' -File)[0].FullName
+$resumePlan = Get-Content -LiteralPath $resumeJournal -Raw -Encoding UTF8 | ConvertFrom-Json
+$failureBackup = @($resumePlan.operations | Where-Object { $_.target -eq $resumeLibrary })[0].backup
+$global:PlainTasksRestoreInjectedBackup = $failureBackup
+function Move-Item {
+    param([string]$LiteralPath, [string]$Destination)
+    if ($LiteralPath -eq $global:PlainTasksRestoreInjectedBackup) { throw 'Injected restore backup move failure' }
+    Microsoft.PowerShell.Management\Move-Item -LiteralPath $LiteralPath -Destination $Destination
+}
+$blocked = $false
+try { & (Join-Path $scripts 'Restore-PlainTasks.ps1') -JournalPath $resumeJournal } catch { $blocked = $true; $restoreFailure = $_ }
+finally { Remove-Item -LiteralPath 'Function:\Move-Item'; Remove-Variable -Name PlainTasksRestoreInjectedBackup -Scope Global }
+if (!$blocked -or (Get-Content -LiteralPath $resumePackage -Raw) -ne 'package-before-interrupted-restore' -or
+    !(Test-Path -LiteralPath $failureBackup)) {
+    throw "Injected restore failure did not retain the original backups and completed package restoration: $restoreFailure"
+}
+$checkpoint = Join-Path (Split-Path -Parent $resumeJournal) 'restore-progress.json'
+if (!(Test-Path -LiteralPath $checkpoint)) { throw 'Interrupted restore did not retain a resumable checkpoint.' }
+Write-PTUtf8 $resumePackage 'user-edit-after-partial-restore'
+$blocked = $false
+try { & (Join-Path $scripts 'Restore-PlainTasks.ps1') -JournalPath $resumeJournal } catch { $blocked = $true }
+if (!$blocked -or (Get-Content -LiteralPath $resumePackage -Raw) -ne 'user-edit-after-partial-restore' -or
+    (Test-Path -LiteralPath $resumeLibrary)) {
+    throw 'Resuming a restore overwrote a user edit or mutated another target before checking it.'
+}
+Write-PTUtf8 $resumePackage 'package-before-interrupted-restore'
+& (Join-Path $scripts 'Restore-PlainTasks.ps1') -JournalPath $resumeJournal
+if ((Get-Content -LiteralPath (Join-Path $resumeLibrary '__init__.py') -Raw) -ne 'library-before-interrupted-restore') {
+    throw 'Resumed restore did not restore the original library.'
+}
+if (!(Test-Path -LiteralPath (Join-Path (Split-Path -Parent $resumeJournal) 'RESTORED.txt'))) {
+    throw 'Resumed restore did not record completion.'
+}
+Write-Host 'PASS: interrupted restoration resumes safely and preserves edits to restored files'
+# Also recover a completed file move whose progress checkpoint was not written.
+$checkpointData = Join-Path $TestRoot 'checkpoint-restore-data'
+$checkpointPackage = Join-Path $checkpointData 'Installed Packages\PlainTasks.sublime-package'
+$null = New-Item -ItemType Directory -Path (Split-Path -Parent $checkpointPackage) -Force
+Write-PTUtf8 $checkpointPackage 'package-before-missing-checkpoint'
+& (Join-Path $scripts 'Install-PlainTasks.ps1') -DataPath $checkpointData -BundleRoot $bundle -BackupExisting
+$checkpointJournal = @(Get-ChildItem -LiteralPath (Join-Path $checkpointData 'PlainTasks Backups') -Recurse -Filter 'restore.json' -File)[0].FullName
+$checkpointPlan = Get-Content -LiteralPath $checkpointJournal -Raw -Encoding UTF8 | ConvertFrom-Json
+$global:PlainTasksRestoreInjectedBackup = $checkpointPlan.operations[0].backup
+function Move-Item {
+    param([string]$LiteralPath, [string]$Destination)
+    Microsoft.PowerShell.Management\Move-Item -LiteralPath $LiteralPath -Destination $Destination
+    if ($LiteralPath -eq $global:PlainTasksRestoreInjectedBackup) { throw 'Injected failure after completed backup move' }
+}
+$blocked = $false
+try { & (Join-Path $scripts 'Restore-PlainTasks.ps1') -JournalPath $checkpointJournal } catch { $blocked = $true }
+finally { Remove-Item -LiteralPath 'Function:\Move-Item'; Remove-Variable -Name PlainTasksRestoreInjectedBackup -Scope Global }
+if (!$blocked -or (Get-Content -LiteralPath $checkpointPackage -Raw) -ne 'package-before-missing-checkpoint') {
+    throw 'The backup move completion failure did not leave the original package in place.'
+}
+$oldCheckpoint = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $checkpointJournal) 'restore-progress.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+if ($oldCheckpoint.operations[0].completed) { throw 'The test did not exercise an unwritten completion checkpoint.' }
+& (Join-Path $scripts 'Restore-PlainTasks.ps1') -JournalPath $checkpointJournal
+if ((Get-Content -LiteralPath $checkpointPackage -Raw) -ne 'package-before-missing-checkpoint') {
+    throw 'Resuming an unwritten checkpoint changed the restored package.'
+}
+Write-Host 'PASS: completed moves are recovered when their checkpoint was not written'
 Write-PTUtf8 (Join-Path $bundle 'lib\python314\rogue.py') 'unlisted-code'
 $blocked = $false
 try { $null = Get-PTBundle $bundle } catch { $blocked = $true }

@@ -23,7 +23,7 @@
     [
       { "key": "selection_empty", "operator": "equal", "operand": true, "match_all": true },
       { "key": "selector", "operator": "equal", "operand": "text.todo" },
-      { "key": "preceding_text", "operator": "regex_contains", "operand": "@due\\([^\\)]+(?!.*?\\))", "match_all": true },
+      { "key": "preceding_text", "operator": "regex_contains", "operand": "@due\\([^\\)]*(?!.*?\\))", "match_all": true },
       { "key": "following_text", "operator": "regex_contains", "operand": "[ \t]*\\)", "match_all": true }
     ]
   },
