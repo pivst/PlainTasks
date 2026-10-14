@@ -199,12 +199,12 @@ class PlainTasksConvertToHtml(PlainTasksBase):
         if css_class and line_class != 'note':
             return f'<span class="{css_class}">{escaped}</span>'
         if line_class in ('open', 'note'):
+            if 'punctuation.definition.italic' in scope or 'punctuation.definition.bold' in scope:
+                return ''
             if 'italic' in scope:
-                content = escape(text.strip('_*'))
-                return f'<i>{content}</i>' if content else ''
+                return f'<i>{escaped}</i>'
             if 'bold' in scope:
-                content = escape(text.strip('_*'))
-                return f'<b>{content}</b>' if content else ''
+                return f'<b>{escaped}</b>'
             if 'url' in scope:
                 url = escape(text.strip('<>'), quote=True)
                 return f'<a href="{url}">{url}</a>' if url else ''
@@ -230,14 +230,14 @@ class PlainTasksConvertToHtml(PlainTasksBase):
             '.header': 'text.todo keyword.control.header.todo',
             '.note': 'text.todo notes.todo',
             '.open': 'text.todo meta.item.todo.pending',
-            '.done': 'text.todo meta.item.todo.completed',
-            '.cancelled': 'text.todo meta.item.todo.cancelled',
+            '.done': 'text.todo meta.item.todo.completed comment.line.completed.todo',
+            '.cancelled': 'text.todo meta.item.todo.cancelled text.cancelled.todo',
             '.bullet-pending': 'text.todo punctuation.definition.bullet.pending.todo',
             '.bullet-done': 'text.todo punctuation.definition.bullet.completed.todo',
             '.bullet-cancelled': 'text.todo punctuation.definition.bullet.cancelled.todo',
             '.tag': 'text.todo meta.tag.todo',
-            '.tag-done': 'text.todo string.other.tag.todo.completed',
-            '.tag-cancelled': 'text.todo string.other.tag.todo.cancelled',
+            '.tag-done': 'text.todo meta.tag.todo.completed',
+            '.tag-cancelled': 'text.todo meta.tag.todo.cancelled',
             '.tag-today': 'text.todo string.other.tag.todo.today',
             '.tag-critical': 'text.todo string.other.tag.todo.critical',
             '.tag-high': 'text.todo string.other.tag.todo.high',
@@ -247,13 +247,12 @@ class PlainTasksConvertToHtml(PlainTasksBase):
         }
         css = []
         for selector, scope in selectors.items():
-            style = self.view.style_for_scope(scope)
+            # Scope styles omit the global background when no rule overrides it.
+            style = self.view.style() if selector == 'body' else self.view.style_for_scope(scope)
             props = [f'{key}: {style[value]};' for key, value in
                      (('color', 'foreground'), ('background-color', 'background')) if style.get(value)]
-            if style.get('bold'):
-                props.append('font-weight: bold;')
-            if style.get('italic'):
-                props.append('font-style: italic;')
+            props.append('font-weight: bold;' if style.get('bold') else 'font-weight: normal;')
+            props.append('font-style: italic;' if style.get('italic') else 'font-style: normal;')
             css.append(f'{selector} {{ {" ".join(props)} }}')
         return css
 

@@ -5,7 +5,6 @@ from datetime import datetime
 import itertools
 import os
 import re
-import subprocess
 import threading
 import webbrowser
 import sublime
@@ -14,6 +13,14 @@ import sublime_plugin
 from .APlainTasksCommon import PlainTasksBase, PlainTasksFold, get_all_projects_and_separators
 
 NT = sublime.platform() == 'windows'
+
+
+def open_external_url(url):
+    """Pass URLs and file paths directly to the platform's registered handler."""
+    if NT:
+        os.startfile(url)
+    else:
+        webbrowser.open_new_tab(url)
 
 
 def tznow() -> datetime:
@@ -508,6 +515,21 @@ class PlainTasksNewTaskDocCommand(sublime_plugin.WindowCommand):
         view.settings().set('color_scheme', pts.get('color_scheme'))
 
 
+class PlainTasksOpenResourceCommand(sublime_plugin.WindowCommand):
+    """Open bundled documentation/settings even from a compressed package."""
+    def is_visible(self, resource, platform=None):
+        return platform is None or platform.lower() == sublime.platform()
+
+    def run(self, resource, platform=None):
+        view = self.window.new_file()
+        view.set_name(os.path.basename(resource))
+        view.set_scratch(True)
+        view.run_command('append', {'characters': sublime.load_resource('Packages/PlainTasks/' + resource)})
+        view.assign_syntax('Packages/PlainTasks/PlainTasks.sublime-syntax' if resource.endswith('.todo')
+                           else 'Packages/JSON/JSON.sublime-syntax')
+        view.set_read_only(not resource.endswith('.todo'))
+
+
 class PlainTasksOpenUrlCommand(sublime_plugin.TextCommand):
     #It is horrible regex but it works perfectly
     URL_REGEX = r"""(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))
@@ -523,12 +545,7 @@ class PlainTasksOpenUrlCommand(sublime_plugin.TextCommand):
             # optional select URL
             self.view.sel().add(rgn)
             url = self.view.substr(rgn)
-            if NT and ':' in url:
-                # webbrowser uses os.startfile() under the hood, and it is not reliable in py3;
-                # thus call start command for url with scheme (eg skype:nick) and full path (eg c:\b)
-                subprocess.Popen(['start', url], shell=True)
-            else:
-                webbrowser.open_new_tab(url)
+            open_external_url(url)
         else:
             self.search_bare_weblink_and_open(start, end)
 
@@ -558,7 +575,7 @@ class PlainTasksOpenUrlCommand(sublime_plugin.TextCommand):
             strUrl = exp.group(0)
             if strUrl.find("://") == -1:
                 strUrl = "http://" + strUrl
-            webbrowser.open_new_tab(strUrl)
+            open_external_url(strUrl)
         else:
             sublime.status_message("Looks like there is nothing to open")
 

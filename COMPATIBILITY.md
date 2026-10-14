@@ -42,13 +42,20 @@ preserved.
 
 ## Validation scope
 
-The standalone suite includes the six original date tests and regression tests
-for the failures above. The original baseline failed its ancient-year date case;
-that case now passes. The development environment provides Python 3.12, on which
-all standalone checks passed. The workflow in `.github/workflows/tests.yml`
-requires Python 3.14 on Linux, Windows, and macOS; consult the PR checks for the
-actual result.
+The local delivery adds fixes for compressed-package menu resources, literal
+markup delimiters, Windows external handlers, and modern HTML theme styles.
+In particular, the global background comes from `View.style()`; scope styles
+can omit it. Completed task/tag selectors match the actual syntax, and normal
+font styles explicitly reset the template's inherited italic style.
 
-Live Sublime Text 4215 UI verification is still required. Follow the
-[smoke checklist](tests/How%20to%20run%20tests.md); API doubles cannot establish
-syntax-engine, Package Control library loading, or GUI behavior.
+On 2026-10-14, all 36 standalone tests passed on Python 3.14.8. The same runtime
+package passed 19 real-editor checks in each of two macOS Sublime Text 4215 /
+embedded Python 3.14.6 installations: compressed and unpacked. These checks use
+real syntax, commands, popups, package resources, CSS, dateutil, and UTF-8/CRLF
+saving, without API doubles. See [the review and evidence](docs/PR_REVIEW.md).
+
+The offline bundle supplies dateutil and six in `Lib/python314`, including
+their licenses, metadata and timezone data. Package Control's dependency
+installation flow was not exercised. Windows 10 / PowerShell 5.1, native
+shortcuts, Save As, browser handlers, and visual popup behavior still require
+target-machine acceptance. Follow [the Windows procedure](docs/WINDOWS_4215.md).

@@ -145,6 +145,9 @@ class View:
     def style_for_scope(self, scope):
         return {'foreground': '#112233', 'background': '#ffffff'}
 
+    def style(self):
+        return {'foreground': '#112233', 'background': '#ffffff'}
+
     def viewport_extent(self):
         return 901.5, 601.5
 

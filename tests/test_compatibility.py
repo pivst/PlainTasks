@@ -176,6 +176,39 @@ class TestEditorContracts(TestCase):
         css = export.PlainTasksConvertToHtml(view).export_css()
         self.assertTrue(any('color: #112233;' in line for line in css))
 
+    def test_modern_scheme_preserves_font_and_completed_scopes(self):
+        view = View(settings={'color_scheme': 'Packages/Color Scheme - Default/Mariana.sublime-color-scheme'})
+        def style(scope):
+            return {'foreground': '#ABCDEF' if 'comment.line.completed.todo' in scope else '#112233',
+                    'italic': False, 'bold': False}
+        view.style_for_scope = style
+        css = export.PlainTasksConvertToHtml(view).export_css()
+        done = next(line for line in css if line.startswith('.done {'))
+        self.assertIn('color: #ABCDEF;', done)
+        self.assertIn('font-style: normal;', done)
+        self.assertIn('font-weight: normal;', done)
+        body = next(line for line in css if line.startswith('body {'))
+        self.assertIn('background-color: #ffffff;', body)
+        with patch.object(view, 'style_for_scope', wraps=style) as styles:
+            export.PlainTasksConvertToHtml(view).export_css()
+        styles.assert_any_call('text.todo meta.tag.todo.completed')
+        styles.assert_any_call('text.todo meta.tag.todo.cancelled')
+
+    def test_markup_content_retains_literal_delimiters(self):
+        view = View('_literal_')
+        view.scope = 'text.todo meta.item.todo.pending todo.bold '
+        command = export.PlainTasksConvertToHtml(view)
+        self.assertEqual(command.render_scope(Region(0, view.size()), 'open'), '<b>_literal_</b>')
+        view.text = '**'
+        view.scope += 'punctuation.definition.bold '
+        self.assertEqual(command.render_scope(Region(0, view.size()), 'open'), '')
+
+    def test_windows_external_handler_receives_unmodified_argument(self):
+        with patch.object(tasks, 'NT', True), patch.object(tasks.os, 'startfile', create=True) as launch:
+            for target in (r'C:\中文 目录\任务 & notes.todo', 'https://example.com/?a=1&b=2'):
+                tasks.open_external_url(target)
+                launch.assert_called_with(target)
+
     def test_missing_theme_falls_back(self):
         view = View(settings={'color_scheme': 'Packages/Missing/theme.tmTheme'})
         self.assertEqual(export.PlainTasksConvertToHtml(view).export_css(), export.default_ccsl)

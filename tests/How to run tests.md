@@ -29,6 +29,14 @@ against the real plugin environment. Do not copy the standalone stub into
 
 ## Build 4215 smoke checks
 
+The repeatable real-editor suite is `editor_smoke.py`; it uses real APIs and no
+standalone stub. For Windows use [the isolated portable runner](../docs/WINDOWS_4215.md).
+On macOS, extract the official ZIP with Finder, then use
+`tools/test_macos4215.py` with `--app`, `--package`, `--libraries`, and `--output`.
+It preserves the signed app and uses official Safe Mode. The current delivery
+passed 19 checks in each of compressed and unpacked installations on macOS
+4215 / embedded Python 3.14.6; native UI and Windows acceptance remain separate.
+
 Use the default Python 3.14 host and check the Sublime console for tracebacks:
 
 - Create a task document. Add, complete, reopen, cancel, and archive tasks, including

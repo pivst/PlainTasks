@@ -16,31 +16,31 @@
                         "children":
                         [
                             {
-                                "command": "open_file",
-                                "args": {"file": "${packages}/PlainTasks/messages/Tutorial.todo"},
+                                "command": "plain_tasks_open_resource",
+                                "args": {"resource": "messages/Tutorial.todo"},
                                 "caption": "Tutorial"
                             },
                             { "caption": "-" },
                             {
-                                "command": "open_file",
+                                "command": "plain_tasks_open_resource",
                                 "args": {
-                                    "file": "${packages}/PlainTasks/PlainTasks (OSX).sublime-settings",
+                                    "resource": "PlainTasks (OSX).sublime-settings",
                                     "platform": "OSX"
                                 },
                                 "caption": "Settings – Default"
                             },
                             {
-                                "command": "open_file",
+                                "command": "plain_tasks_open_resource",
                                 "args": {
-                                    "file": "${packages}/PlainTasks/PlainTasks (Linux).sublime-settings",
+                                    "resource": "PlainTasks (Linux).sublime-settings",
                                     "platform": "Linux"
                                 },
                                 "caption": "Settings – Default"
                             },
                             {
-                                "command": "open_file",
+                                "command": "plain_tasks_open_resource",
                                 "args": {
-                                    "file": "${packages}/PlainTasks/PlainTasks (Windows).sublime-settings",
+                                    "resource": "PlainTasks (Windows).sublime-settings",
                                     "platform": "Windows"
                                 },
                                 "caption": "Settings – Default"
@@ -52,25 +52,25 @@
                             },
                             { "caption": "-" },
                             {
-                                "command": "open_file",
+                                "command": "plain_tasks_open_resource",
                                 "args": {
-                                    "file": "${packages}/PlainTasks/Default (OSX).sublime-keymap",
+                                    "resource": "Default (OSX).sublime-keymap",
                                     "platform": "OSX"
                                 },
                                 "caption": "Key Bindings – Default"
                             },
                             {
-                                "command": "open_file",
+                                "command": "plain_tasks_open_resource",
                                 "args": {
-                                    "file": "${packages}/PlainTasks/Default (Linux).sublime-keymap",
+                                    "resource": "Default (Linux).sublime-keymap",
                                     "platform": "Linux"
                                 },
                                 "caption": "Key Bindings – Default"
                             },
                             {
-                                "command": "open_file",
+                                "command": "plain_tasks_open_resource",
                                 "args": {
-                                    "file": "${packages}/PlainTasks/Default (Windows).sublime-keymap",
+                                    "resource": "Default (Windows).sublime-keymap",
                                     "platform": "Windows"
                                 },
                                 "caption": "Key Bindings – Default"
