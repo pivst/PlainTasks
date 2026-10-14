@@ -104,6 +104,7 @@ class TestReleaseBuild(TestCase):
 
     def test_package_declares_the_current_runtime_and_excludes_legacy_and_development_files(self):
         for name in (
+            "package-metadata.json",
             "PlainTasks.tmLanguage",
             "plist_parser.py",
             "tests/test_dates.py",
@@ -116,9 +117,10 @@ class TestReleaseBuild(TestCase):
         ):
             self.write(self.source / name, b"Unwanted fixture")
         _, package, _ = self.build()
-        metadata = json.loads(package["package-metadata.json"])
-        self.assertEqual(metadata["version"], release.VERSION)
-        self.assertEqual(metadata["sublime_text"], ">=4215")
+        # A manual installation must not opt into Package Control ownership or
+        # be removed by its orphan cleanup on the editor's next startup.
+        self.assertNotIn("package-metadata.json", package)
+        self.assertEqual(package["VERSION"].decode().strip(), release.VERSION)
         self.assertEqual(package[".python-version"].strip(), b"3.14")
         self.assertIn("PlainTasks.sublime-syntax", package)
         self.assertIn("LICENSE", package)

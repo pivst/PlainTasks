@@ -40,6 +40,11 @@ It installs into `%APPDATA%\Sublime Text` and backs up an existing PlainTasks
 installation before replacing it. Personal settings are retained; no
 administrator account, network connection, or separate Python is required.
 
+The offline release is installed and updated manually. It omits Package
+Control's ownership metadata to avoid its orphan cleanup. Do not register this
+fork as Package Control's upstream `PlainTasks` package; use offline bundles for
+updates. `VERSION` and the included file manifests identify the release.
+
 For a portable installation, run `Install.cmd "C:\Tools\Sublime Text"` from a
 command prompt, substituting your actual editor directory.
 

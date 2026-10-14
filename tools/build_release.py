@@ -172,15 +172,9 @@ def build(output: Path, libraries: Path | None) -> dict[str, str]:
     runtime = {name: read_file(ROOT / name) for name in PACKAGE_FILES}
     if runtime[".python-version"].strip() != b"3.14":
         raise ValueError("The release must explicitly select the Python 3.14 plugin host")
-    runtime["package-metadata.json"] = json_bytes(
-        {
-            "version": VERSION,
-            "sublime_text": ">=4215",
-            "platforms": ["*"],
-            "url": "https://github.com/pivst/PlainTasks",
-            "description": "Task lists for Sublime Text 4215 and Python 3.14",
-        }
-    )
+    # This is a manually installed distribution. Package Control treats the
+    # presence of package-metadata.json as ownership and may remove the package
+    # as orphaned. VERSION and the delivery manifest identify our release.
     package = reproducible_zip(runtime)
     package_manifest = json_bytes(
         {
