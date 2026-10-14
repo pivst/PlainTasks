@@ -2,3 +2,10 @@
 *.pyc
 .DS_Store
 package-metadata.json
+__pycache__/
+.ruff_cache/
+.venv/
+/dist/
+/validation/
+/.build-libs/
+/.build-bundle/

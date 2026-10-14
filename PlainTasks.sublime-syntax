@@ -2,8 +2,11 @@
 ---
 name: Tasks
 file_extensions:
+  - TODO
   - todo
   - tasks
+  - taskpaper
+  - todolist
   - todolist.txt
 scope: text.todo
 contexts:
@@ -36,7 +39,7 @@ contexts:
         - include: italic
         - include: bold
         - include: url
-    - match: '^\s*(-|❍|❑|■|□|☐|▪|▫|–|—|≡|→|›|\[\s\])(?=(\s+(?:[^\@\n]|(?<![ \t])\@)*)(?!([^\n]*)?(\@done|\@cancelled)[\s\(]))'
+    - match: '^[ \t]*(-|❍|❑|■|□|☐|▪|▫|–|—|≡|→|›|\[[ \t]\])(?=[ \t])'
       captures:
         1: punctuation.definition.bullet.pending.todo
       push:
@@ -68,10 +71,10 @@ contexts:
             1: punctuation.definition.bold
           pop: true
   critical:
-    - match: (?<=\s)\@critical|✭critical
+    - match: '(?<=\s)@critical\b|✭critical\b'
       scope: string.other.tag.todo.critical
   high:
-    - match: (?<=\s)\@high|✭high
+    - match: '(?<=\s)@high\b|✭high\b'
       scope: string.other.tag.todo.high
   italic:
     - match: '(?<=\s|^)(\*|_)(?=\S)(?=(\1\1|(?!(?<=\S)\1).)++(?<=\S)\1)(?=[^\n]+(?<=\S)(\1)(?!\1|[\w\d]))'
@@ -84,13 +87,13 @@ contexts:
             1: punctuation.definition.italic
           pop: true
   low:
-    - match: (?<=\s)\@low|✭low
+    - match: '(?<=\s)@low\b|✭low\b'
       scope: string.other.tag.todo.low
   tag:
-    - match: '(?<=\s)\@(?!(high|today|critical|low|completed|done)[\s\(])[\w\d\.\(\)\-!? :\+]+[ \t]*'
+    - match: '(?<=\s)@(?!(?:high|today|critical|low)(?=[\s(]|$))[\w.!?+\-]+(?:\([^()\n]*\))?'
       scope: meta.tag.todo
   today:
-    - match: (?<=\s)\@today|✭ᴛᴏᴅᴀʏ
+    - match: '(?<=\s)@today\b|✭ᴛᴏᴅᴀʏ\b'
       scope: string.other.tag.todo.today
   url:
     - match: '(?<!\S)(<)\w+?(?!\s)(\.|:)(?!\s)[^\n]+?(>)'
