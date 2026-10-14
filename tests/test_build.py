@@ -162,7 +162,10 @@ class TestReleaseBuild(TestCase):
             path = Path(result[kind])
             expected = hashlib.sha256(path.read_bytes()).hexdigest()
             detached, filename = (
-                path.with_name(path.name + ".sha256").read_text().strip().split("  ", 1)
+                path.with_name(path.name + ".sha256")
+                .read_text(encoding="utf-8")
+                .strip()
+                .split("  ", 1)
             )
             self.assertEqual(detached, expected)
             self.assertEqual(filename, path.name)
@@ -211,9 +214,11 @@ class TestReleaseBuild(TestCase):
                     if failure == "missing":
                         metadata.unlink()
                     elif failure == "version":
-                        metadata.write_text(f"Name: {name}\nVersion: 0.0.0\n")
+                        metadata.write_text(f"Name: {name}\nVersion: 0.0.0\n", encoding="utf-8")
                     else:
-                        metadata.write_text("Name: unrelated-package\nVersion: 1.17.0\n")
+                        metadata.write_text(
+                            "Name: unrelated-package\nVersion: 1.17.0\n", encoding="utf-8"
+                        )
                     output = self.directory / f"output-{index}-{failure}"
                     with self.assertRaises(ValueError):
                         release.build(output, directory)

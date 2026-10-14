@@ -299,20 +299,20 @@ class TestTaskEditing(TestCase):
             view = TaskView("Project:\n ☐ child\nSibling:\n ☐ keep")
             view._filename = str(Path(directory) / "source.todo")
             tasks.PlainTasksArchiveOrgCommand(view).run(view.edit)
-            archived = (Path(directory) / "source_archive.todo").read_text()
+            archived = (Path(directory) / "source_archive.todo").read_text(encoding="utf-8")
         self.assertIn("Project:\n ☐ child\n", archived)
         self.assertEqual(view.text, "Sibling:\n ☐ keep")
 
     def test_org_archive_failure_keeps_original_task(self):
         view = TaskView(" ☐ task")
-        view._filename = "/source.todo"
+        view._filename = str(Path.cwd() / "source.todo")
         with patch("builtins.open", side_effect=OSError("read only")):
             tasks.PlainTasksArchiveOrgCommand(view).run(view.edit)
         self.assertEqual(view.text, " ☐ task")
 
     def test_org_archive_cannot_append_to_its_source(self):
         view = TaskView(" ☐ task", {"archive_org_filemask": "{dir}{sep}{base}{ext}"})
-        view._filename = "/source.todo"
+        view._filename = str(Path.cwd() / "source.todo")
         with patch("builtins.open") as write:
             tasks.PlainTasksArchiveOrgCommand(view).run(view.edit)
         write.assert_not_called()
@@ -524,7 +524,7 @@ class TestLinks(TestCase):
     def test_absolute_path_does_not_walk_project(self):
         with tempfile.TemporaryDirectory() as directory:
             file = Path(directory) / "target.todo"
-            file.write_text("task")
+            file.write_text("task", encoding="utf-8")
             search = tasks.LinkSearch()
             with patch.object(
                 tasks.os, "walk", side_effect=AssertionError("Absolute links must not walk")
@@ -538,7 +538,7 @@ class TestLinks(TestCase):
             child = Path(directory) / "child"
             child.mkdir()
             file = child / "target.todo"
-            file.write_text("task")
+            file.write_text("task", encoding="utf-8")
             search = tasks.LinkSearch()
             tasks.search_files(search, [directory, str(child), directory], "target.todo")
         self.assertEqual(search.results, [(str(file), 0, 0, "f")])
