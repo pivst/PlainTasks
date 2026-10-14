@@ -35,7 +35,15 @@ folder takes precedence over the archive; move it to a backup first.
 ## Windows offline bundle
 
 Extract the complete `PlainTasks-<version>-windows.zip` on the offline computer.
-Close Sublime Text. From the extracted directory, run in PowerShell:
+Close Sublime Text, then double-click **Install.cmd** in the extracted directory.
+It installs into `%APPDATA%\Sublime Text` and backs up an existing PlainTasks
+installation before replacing it. Personal settings are retained; no
+administrator account, network connection, or separate Python is required.
+
+For a portable installation, run `Install.cmd "C:\Tools\Sublime Text"` from a
+command prompt, substituting your actual editor directory.
+
+To use the PowerShell installer directly, run from the extracted directory:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\Install-PlainTasks.ps1 -DataPath "$env:APPDATA\Sublime Text"

@@ -192,6 +192,7 @@ def build(output: Path, libraries: Path | None) -> dict[str, str]:
     bundle = {
         PACKAGE_NAME: package,
         "PlainTasks.package-manifest.json": package_manifest,
+        "Install.cmd": read_file(ROOT / "tools/windows/Install.cmd"),
         "README.md": read_file(ROOT / "README.md"),
         "docs/installation.md": read_file(ROOT / "docs/installation.md"),
         "docs/usage.md": read_file(ROOT / "docs/usage.md"),

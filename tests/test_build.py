@@ -26,6 +26,7 @@ class TestReleaseBuild(TestCase):
             "docs/usage.md",
             "docs/development.md",
             "tests/editor_smoke.py",
+            "tools/windows/Install.cmd",
             *(f"tools/windows/{name}" for name in release.WINDOWS_FILES),
         )
         for name in names:

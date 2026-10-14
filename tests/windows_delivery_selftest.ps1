@@ -112,6 +112,100 @@ if (!(Test-Path -LiteralPath (Join-Path $cliData 'Installed Packages\PlainTasks.
     throw 'Installer -File entry point did not install the package.'
 }
 Write-Host 'PASS: external -File entry point resolves default bundle independently of CWD'
+# Exercise the distributed CMD entry point on Windows with the actual built-in
+# PowerShell 5.1 engine. Redirect stdin from NUL so pause cannot block CI.
+if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+    function Invoke-PTNativeLauncher([string]$Launcher, [string]$Arguments = '') {
+        $start = New-Object Diagnostics.ProcessStartInfo
+        $start.FileName = $env:ComSpec
+        $start.Arguments = '/d /v:on /c ""' + $Launcher + '"' + $Arguments + ' < NUL"'
+        $start.UseShellExecute = $false
+        $start.CreateNoWindow = $true
+        $start.RedirectStandardOutput = $true
+        $start.RedirectStandardError = $true
+        $process = New-Object Diagnostics.Process
+        $process.StartInfo = $start
+        try {
+            $null = $process.Start()
+            $stdout = $process.StandardOutput.ReadToEndAsync()
+            $stderr = $process.StandardError.ReadToEndAsync()
+            if (!$process.WaitForExit(60000)) {
+                $process.Kill()
+                $process.WaitForExit()
+                throw 'CMD launcher did not finish with NUL stdin.'
+            }
+            Write-Host ($stdout.GetAwaiter().GetResult() + $stderr.GetAwaiter().GetResult())
+            return $process.ExitCode
+        } finally { $process.Dispose() }
+    }
+    $launcher = Join-Path $bundle 'Install.cmd'
+    $originalAppData = [Environment]::GetEnvironmentVariable('APPDATA', 'Process')
+    $nativeAppData = Join-Path $TestRoot 'CMD AppData with spaces ! & folder'
+    $nativeData = Join-Path $nativeAppData 'Sublime Text'
+    $nativePackage = Join-Path $nativeData 'Installed Packages\PlainTasks.sublime-package'
+    $nativeCheckout = Join-Path $nativeData 'Packages\PlainTasks'
+    $nativeLibrary = Join-Path $nativeData 'Lib\python314\dateutil'
+    $nativeSettings = Join-Path $nativeData 'Packages\User\PlainTasks.sublime-settings'
+    foreach ($directory in @((Split-Path -Parent $nativePackage), $nativeCheckout, $nativeLibrary,
+                             (Split-Path -Parent $nativeSettings))) {
+        $null = New-Item -ItemType Directory -Path $directory -Force
+    }
+    Write-PTUtf8 $nativePackage 'previous-package-from-cmd'
+    Write-PTUtf8 (Join-Path $nativeCheckout 'my-task.todo') 'personal-task-from-cmd'
+    Write-PTUtf8 (Join-Path $nativeLibrary '__init__.py') 'previous-library-from-cmd'
+    Write-PTUtf8 $nativeSettings 'personal-settings-from-cmd'
+    $originalNativePaths = @{}
+    foreach ($path in @($nativePackage, $nativeCheckout, $nativeLibrary)) {
+        $originalNativePaths[$path] = Get-PTFingerprint $path
+    }
+    try {
+        [Environment]::SetEnvironmentVariable('APPDATA', $nativeAppData, 'Process')
+        if ((Invoke-PTNativeLauncher $launcher) -ne 0) { throw 'Native CMD installer failed.' }
+        if ((Get-PTFingerprint $nativePackage) -ne (Get-PTFingerprint (Join-Path $bundle 'PlainTasks.sublime-package'))) {
+            throw 'CMD launcher did not install into the exact APPDATA path containing spaces, ! and &.'
+        }
+        if (Test-Path -LiteralPath $nativeCheckout) { throw 'CMD installer did not remove the old unpacked package.' }
+        foreach ($item in Get-ChildItem -LiteralPath (Join-Path $bundle 'lib\python314') -Force) {
+            if ((Get-PTFingerprint (Join-Path $nativeData ('Lib\python314\' + $item.Name))) -ne (Get-PTFingerprint $item.FullName)) {
+                throw "CMD installer did not install the offline dependency: $($item.Name)"
+            }
+        }
+        if ((Get-Content -LiteralPath $nativeSettings -Raw) -ne 'personal-settings-from-cmd') {
+            throw 'CMD installer modified personal settings.'
+        }
+        $nativeBackups = Join-Path $nativeData 'PlainTasks Backups'
+        $nativeJournals = @(Get-ChildItem -LiteralPath $nativeBackups -Recurse -Filter 'restore.json' -File)
+        if ($nativeJournals.Count -ne 1) { throw 'CMD upgrade did not create exactly one backup journal.' }
+        $nativePlan = Get-Content -LiteralPath $nativeJournals[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+        foreach ($path in $originalNativePaths.Keys) {
+            $operation = @($nativePlan.operations | Where-Object { $_.target -eq $path })
+            if ($operation.Count -ne 1 -or (Get-PTFingerprint $operation[0].backup) -ne $originalNativePaths[$path]) {
+                throw "CMD upgrade did not retain the complete previous item: $path"
+            }
+        }
+        if ((Invoke-PTNativeLauncher $launcher) -ne 0) { throw 'Identical CMD reinstall failed.' }
+        if (@(Get-ChildItem -LiteralPath $nativeBackups -Recurse -Filter 'restore.json' -File).Count -ne 1) {
+            throw 'Identical CMD reinstall created an unnecessary backup.'
+        }
+        $installedNative = Get-PTFingerprint $nativeData
+        [Environment]::SetEnvironmentVariable('APPDATA', $null, 'Process')
+        if ((Invoke-PTNativeLauncher $launcher) -ne 1) { throw 'CMD launcher did not reject missing APPDATA with exit code 1.' }
+        [Environment]::SetEnvironmentVariable('APPDATA', $nativeAppData, 'Process')
+        $missingPortable = Join-Path $TestRoot 'missing portable with spaces'
+        if ((Invoke-PTNativeLauncher $launcher (' "' + $missingPortable + '\"')) -ne 1) {
+            throw 'CMD launcher did not preserve the PowerShell failure exit code after pause.'
+        }
+        if ((Get-PTFingerprint $nativeData) -ne $installedNative) { throw 'Failed CMD invocation changed the installed profile.' }
+    } finally {
+        [Environment]::SetEnvironmentVariable('APPDATA', $originalAppData, 'Process')
+    }
+    if ([Environment]::GetEnvironmentVariable('APPDATA', 'Process') -ne $originalAppData) {
+        throw 'Native CMD test did not restore the original APPDATA environment.'
+    }
+    Write-Host 'PASS: native CMD upgrade handles special APPDATA paths, preserves backups/settings and returns correct exit codes'
+} else {
+    Write-Host 'SKIP: native CMD launcher requires Windows; run this suite in Windows PowerShell 5.1.'
+}
 # Simulate a locked old-library move after the package was already restored.
 # A second invocation must resume safely, and changes to an already restored
 # item must stop that invocation before another target is touched.
